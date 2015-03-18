@@ -1,0 +1,64 @@
+#!/bin/sh
+#
+# Plugin to monitor a ZFS Filesystem
+#
+# Wildcard-plugin to monitor a zfs filesystems. 
+#
+# To monitor a filesystem, link zfs_fs_<zpool>_<filesystem> to this file. E.g.
+#
+#    ln -s /usr/share/munin/node/plugins-auto/zfs_fs_ /etc/munin/node.d/zfs_fs_tank_foo
+# 
+# ...will monitor tank/foo fs.
+#
+# You can monitor zpool as well by a link on zfs_fs_<zpool>
+#
+# Parameters understood:
+#
+# 	config   (required)
+# 	autoconf (optional - used by munin-config)
+# 
+# ** WARNING **
+# For now this plugin does not allow "_" in the name of a zpool or filesystems
+#
+
+myname=`basename $0 | sed 's/^zfs_fs_//g' | sed -e 's/_/\//g'`
+
+if [ "$1" = "autoconf" ]; then
+    # Makes little sense to autoconf if you can't suggest
+    echo no
+    exit 0
+fi
+
+if [ "$1" = "suggest" ]; then
+	exit 0
+fi
+
+dedup=( $(zpool list $myname | grep $myname | awk '{ print $6 }' | sed s/x//) )
+compression=( $( zfs get compressratio $myname | grep $myname | awk '{print $3}' | sed s/x//))
+
+if [ "$1" = "config" ]; then
+
+	echo <<EOF "graph_title zfs $myname
+graph_order deduplication compression
+graph_args --base 1024 -r -l 0 --vertical-label Percent 
+graph_info This graph shows how is used a zfs filesystems.
+graph_category Zfs
+graph_period second
+deduplication.label Deduplication
+deduplication.draw LINE1
+deduplication.info Deduplication ratio
+deduplication.colour FF0000
+compression.label Compression
+compression.draw LINE1
+compression.info Compression ratio
+compression.colour FFCC33"
+EOF
+	exit 0
+fi
+
+echo <<EOF "deduplication.value ${dedup[0]}
+compression.value ${compression[0]}"
+EOF
+
+exit 0
+
